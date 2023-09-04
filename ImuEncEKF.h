@@ -1,5 +1,5 @@
 /*
-  ImuEKF.cpp - Library to apply an EKF to an IMU (accel. and gyro.) - description
+  ImuEncEKF.h - Library to apply an EKF to an IMU (accel. and gyro.) and wheel encoder
   Author - Sequoyah Walters
   Note - Uses notation from "Robust Stereo Visual Inertial Odometry for Fast Autonomous Flight"
 */
@@ -7,41 +7,41 @@
 #pragma once
 
 #include <string>
-#include <Eigen/Dense>
+#include <BasicLinearAlgebra.h>
 
 // library interface description
-class ImuEKF
+class ImuEncEKF
 {
   public:
     // Constructor
-    ImuEKF();
+    ImuEncEKF();
 
     // Functions
     void printState();
     void printErrState();
-    void setIMUmeas(double, double, double, double, double, double);
-    void RK4(double);
+    void setIMUmeas(float, float, float, float, float, float);
+    void RK4(float);
 
   private:
     // IMU measurement struct
     struct meas {
-      Eigen::Vector3d a; // linear acceleration
-      Eigen::Vector3d w; // angular velocity
+      BLA::Matrix<3> a; // linear acceleration
+      BLA::Matrix<3> w; // angular velocity
     };
 
     // State struct
     struct state {
-      Eigen::Vector4d q;  // rotation from world frame to IMU body frame
-      Eigen::Vector3d bw; // bias of angular velocity measurements
-      Eigen::Vector3d v;  // velocity of IMU body frame in world frame
-      Eigen::Vector3d ba; // bias of linear acceleration measurements
-      Eigen::Vector3d p;  // position of IMU body frame in world frame
+      BLA::Matrix<4> q;  // rotation from world frame to IMU body frame
+      BLA::Matrix<3> bw; // bias of angular velocity measurements
+      BLA::Matrix<3> v;  // velocity of IMU body frame in world frame
+      BLA::Matrix<3> ba; // bias of linear acceleration measurements
+      BLA::Matrix<3> p;  // position of IMU body frame in world frame
       // Constructor
-      state(Eigen::Vector4d q={0.0, 0.0, 0.0, 1.0},
-            Eigen::Vector3d bw={0.0, 0.0, 0.0},
-            Eigen::Vector3d v={0.0, 0.0, 0.0},
-            Eigen::Vector3d ba={0.0, 0.0, 0.0},
-            Eigen::Vector3d p={0.0, 0.0, 0.0})
+      state(BLA::Matrix<4> q={0.0, 0.0, 0.0, 1.0},
+            BLA::Matrix<3> bw={0.0, 0.0, 0.0},
+            BLA::Matrix<3> v={0.0, 0.0, 0.0},
+            BLA::Matrix<3> ba={0.0, 0.0, 0.0},
+            BLA::Matrix<3> p={0.0, 0.0, 0.0})
         : q(q), bw(bw), v(v), ba(ba), p(p)
       {
       }
@@ -51,12 +51,12 @@ class ImuEKF
         return state(q+A.q, bw+A.bw, v+A.v, ba+A.ba, p+A.p);
       }
       // multiply operator (doesn't modify object, therefor const)
-      state operator*(double val) const
+      state operator*(float val) const
       {
         return state(q*val, bw*val, v*val, ba*val, p*val);
       }
       // divide operator (doesn't modify object, therefor const)
-      state operator/(double val) const
+      state operator/(float val) const
       {
         return state(q/val, bw/val, v/val, ba/val, p/val);
       }
@@ -64,17 +64,17 @@ class ImuEKF
 
     // Error state struct
     struct err_state {
-      Eigen::Vector3d th_err; // small angle rotation error q_err ~= (0.5*th_err, 1)^T
-      Eigen::Vector3d bw_err; // bw_err = bw_true - bw_estimate
-      Eigen::Vector3d v_err;
-      Eigen::Vector3d ba_err;
-      Eigen::Vector3d p_err;
+      BLA::Matrix<3> th_err; // small angle rotation error q_err ~= (0.5*th_err, 1)^T
+      BLA::Matrix<3> bw_err; // bw_err = bw_true - bw_estimate
+      BLA::Matrix<3> v_err;
+      BLA::Matrix<3> ba_err;
+      BLA::Matrix<3> p_err;
       // Constructor
-      err_state(Eigen::Vector3d th_err={0.0, 0.0, 0.0},
-                Eigen::Vector3d bw_err={0.0, 0.0, 0.0},
-                Eigen::Vector3d v_err={0.0, 0.0, 0.0},
-                Eigen::Vector3d ba_err={0.0, 0.0, 0.0},
-                Eigen::Vector3d p_err={0.0, 0.0, 0.0})
+      err_state(BLA::Matrix<3> th_err={0.0, 0.0, 0.0},
+                BLA::Matrix<3> bw_err={0.0, 0.0, 0.0},
+                BLA::Matrix<3> v_err={0.0, 0.0, 0.0},
+                BLA::Matrix<3> ba_err={0.0, 0.0, 0.0},
+                BLA::Matrix<3> p_err={0.0, 0.0, 0.0})
         : th_err(th_err), bw_err(bw_err), v_err(v_err), ba_err(ba_err), p_err(p_err)
       {
       }
@@ -84,12 +84,12 @@ class ImuEKF
         return err_state(th_err+A.th_err, bw_err+A.bw_err, v_err+A.v_err, ba_err+A.ba_err, p_err+A.p_err);
       }
       // multiply operator (doesn't modify object, therefor const)
-      err_state operator*(double val) const
+      err_state operator*(float val) const
       {
         return err_state(th_err*val, bw_err*val, v_err*val, ba_err*val, p_err*val);
       }
       // divide operator (doesn't modify object, therefor const)
-      err_state operator/(double val) const
+      err_state operator/(float val) const
       {
         return err_state(th_err/val, bw_err/val, v_err/val, ba_err/val, p_err/val);
       }
@@ -99,8 +99,8 @@ class ImuEKF
     meas IMU_meas_;   // IMU measurement
     state X_est_;     // state estimate
     err_state X_err_; // error state estimate
-    Eigen::Matrix<double, 15, 15> P_k; // error state covariance
+    BLA::Matrix<15, 15> P_k; // error state covariance
 
     // Functions
-    state Dyn(const ImuEKF::state&); // state dynamics
+    state Dyn(const ImuEncEKF::state&); // state dynamics
 };

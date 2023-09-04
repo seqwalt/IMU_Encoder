@@ -5,20 +5,23 @@
  * All rights reserved.
  *
  * Edits by SW:
- *   8-23-2023:
+ *   08-23-2023:
  *     Change namespace name to math_utils
  *     Use #pragma once
  *     shorten all function names
  *
- * Function list (all use double Eigen types):
+ *   09-03-23
+ *     Use BasicLinearAlgebra instead of Eigen
+ *
+ * Function list (all input/output float types):
  *   skewSym, quatNorm, quatMult,
  *   smallAngleQuat, quat2Rot, rot2Quat
  */
 
 #pragma once
 
-#include <cmath>
-#include <Eigen/Dense>
+#include <BasicLinearAlgebra.h>
+#include <math.h>
 
 namespace math_utils
 {
@@ -30,9 +33,9 @@ namespace math_utils
  *          [ w3   0 -w1]
  *          [-w2  w1   0]
  */
-inline Eigen::Matrix3d skewSym ( const Eigen::Vector3d& w )
+inline BLA::Matrix<3,3> skewSym ( const BLA::Matrix<3>& w )
 {
-    Eigen::Matrix3d w_hat;
+    BLA::Matrix<3,3> w_hat;
     w_hat ( 0, 0 ) = 0;
     w_hat ( 0, 1 ) = -w ( 2 );
     w_hat ( 0, 2 ) = w ( 1 );
@@ -48,21 +51,19 @@ inline Eigen::Matrix3d skewSym ( const Eigen::Vector3d& w )
 /*
  * @brief Normalize the given quaternion to unit quaternion.
  */
-inline void quatNorm ( Eigen::Vector4d& q )
+inline void quatNorm ( BLA::Matrix<4>& q )
 {
-    double norm = q.norm();
-    q = q / norm;
-    return;
+    q = q / sqrt( q(0)*q(0) + q(1)*q(1) + q(2)*q(2) + q(3)*q(3) );
 }
 
 /*
  * @brief Perform q1 * q2
  */
-inline Eigen::Vector4d quatMult (
-    const Eigen::Vector4d& q1,
-    const Eigen::Vector4d& q2 )
+inline BLA::Matrix<4> quatMult (
+    const BLA::Matrix<4>& q1,
+    const BLA::Matrix<4>& q2 )
 {
-    Eigen::Matrix4d L;
+    BLA::Matrix<4,4> L;
     L ( 0, 0 ) =  q1 ( 3 );
     L ( 0, 1 ) =  q1 ( 2 );
     L ( 0, 2 ) = -q1 ( 1 );
@@ -80,7 +81,7 @@ inline Eigen::Vector4d quatMult (
     L ( 3, 2 ) = -q1 ( 2 );
     L ( 3, 3 ) =  q1 ( 3 );
 
-    Eigen::Vector4d q = L * q2;
+    BLA::Matrix<4> q = L * q2;
     quatNorm ( q );
     return q;
 }
@@ -94,21 +95,21 @@ inline Eigen::Vector4d quatMult (
  *   "Indirect Kalman Filter for 3D Attitude Estimation:
  *   A Tutorial for quaternion Algebra".
  */
-inline Eigen::Vector4d smallAngleQuat (
-    const Eigen::Vector3d& dtheta )
+inline BLA::Matrix<4> smallAngleQuat (
+    const BLA::Matrix<3>& dtheta )
 {
 
-    Eigen::Vector3d dq = dtheta / 2.0;
-    Eigen::Vector4d q;
-    double dq_square_norm = dq.squaredNorm();
+    BLA::Matrix<3> dq = dtheta * 0.5f;
+    BLA::Matrix<4> q;
+    float dq_square_norm = dq(0)*dq(0) + dq(1)*dq(1) + dq(2)*dq(2);
 
     if ( dq_square_norm <= 1 ) {
-        q.head<3>() = dq;
-        q ( 3 ) = std::sqrt ( 1-dq_square_norm );
+        q.Submatrix<3,1>(0,0) = dq; // set q(0) = dq(0) ... q(2) = dq(2)
+        q ( 3 ) = sqrt ( 1-dq_square_norm );
     } else {
-        q.head<3>() = dq;
+        q.Submatrix<3,1>(0,0) = dq;
         q ( 3 ) = 1;
-        q = q / std::sqrt ( 1+dq_square_norm );
+        q = q / sqrt ( 1+dq_square_norm );
     }
 
     return q;
@@ -123,15 +124,18 @@ inline Eigen::Vector4d smallAngleQuat (
  *   The input quaternion should be in the form
  *     [q1, q2, q3, q4(scalar)]^T
  */
-inline Eigen::Matrix3d quat2Rot (
-    const Eigen::Vector4d& q )
+inline BLA::Matrix<3,3> quat2Rot (
+    const BLA::Matrix<4>& q )
 {
-    const Eigen::Vector3d& q_vec = q.block ( 0, 0, 3, 1 );
-    const double& q4 = q ( 3 );
-    Eigen::Matrix3d R =
-        ( 2*q4*q4-1 ) *Eigen::Matrix3d::Identity() -
-        2*q4*skewSym ( q_vec ) +
-        2*q_vec*q_vec.transpose();
+    const BLA::Matrix<3>& q_vec = q.Submatrix<3,1>(0,0);
+    const float& q4 = q ( 3 );
+    BLA::Matrix<3,3> Identity3 = {1.0f, 0.0f, 0.0f,
+                                  0.0f, 1.0f, 0.0f,
+                                  0.0f, 0.0f, 1.0f};
+    BLA::Matrix<3,3> R =
+        Identity3 * (2*q4*q4-1) -
+        skewSym(q_vec) * 2.0f*q4 +
+        q_vec*(~q_vec) * 2.0f;
     //TODO: Is it necessary to use the approximation equation
     //    (Equation (87)) when the rotation angle is small?
     return R;
@@ -142,40 +146,34 @@ inline Eigen::Matrix3d quat2Rot (
  * @note Pay attention to the convention used. The function follows the
  *   conversion in "Indirect Kalman Filter for 3D Attitude Estimation:
  *   A Tutorial for Quaternion Algebra", Equation (78).
- *
- *   The input quaternion should be in the form
- *     [q1, q2, q3, q4(scalar)]^T
  */
-inline Eigen::Vector4d rot2Quat (
-    const Eigen::Matrix3d& R )
+inline BLA::Matrix<4> rot2Quat (
+    const BLA::Matrix<3,3>& R )
 {
-    Eigen::Vector4d score;
-    score ( 0 ) = R ( 0, 0 );
-    score ( 1 ) = R ( 1, 1 );
-    score ( 2 ) = R ( 2, 2 );
-    score ( 3 ) = R.trace();
+    float r00 = R ( 0, 0 );
+    float r11 = R ( 1, 1 );
+    float r22 = R ( 2, 2 );
+    float trace_R = r00 + r11 + r22; // trace of R
 
-    int max_row = 0, max_col = 0;
-    score.maxCoeff ( &max_row, &max_col );
-
-    Eigen::Vector4d q = Eigen::Vector4d::Zero();
-    if ( max_row == 0 ) {
-        q ( 0 ) = std::sqrt ( 1+2*R ( 0, 0 )-R.trace() ) / 2.0;
+    BLA::Matrix<4> q;
+    q.Fill(0.0f);
+    if ( r00 >= r11 && r00 >= r22 && r00 >= trace_R ) {
+        q ( 0 ) = sqrt ( 1+2*R ( 0, 0 )-trace_R ) / 2.0;
         q ( 1 ) = ( R ( 0, 1 )+R ( 1, 0 ) ) / ( 4*q ( 0 ) );
         q ( 2 ) = ( R ( 0, 2 )+R ( 2, 0 ) ) / ( 4*q ( 0 ) );
         q ( 3 ) = ( R ( 1, 2 )-R ( 2, 1 ) ) / ( 4*q ( 0 ) );
-    } else if ( max_row == 1 ) {
-        q ( 1 ) = std::sqrt ( 1+2*R ( 1, 1 )-R.trace() ) / 2.0;
+    } else if ( r11 >= r22 && r11 >= trace_R ) {
+        q ( 1 ) = sqrt ( 1+2*R ( 1, 1 )-trace_R ) / 2.0;
         q ( 0 ) = ( R ( 0, 1 )+R ( 1, 0 ) ) / ( 4*q ( 1 ) );
         q ( 2 ) = ( R ( 1, 2 )+R ( 2, 1 ) ) / ( 4*q ( 1 ) );
         q ( 3 ) = ( R ( 2, 0 )-R ( 0, 2 ) ) / ( 4*q ( 1 ) );
-    } else if ( max_row == 2 ) {
-        q ( 2 ) = std::sqrt ( 1+2*R ( 2, 2 )-R.trace() ) / 2.0;
+    } else if ( r22 >= trace_R ) {
+        q ( 2 ) = sqrt ( 1+2*R ( 2, 2 )-trace_R ) / 2.0;
         q ( 0 ) = ( R ( 0, 2 )+R ( 2, 0 ) ) / ( 4*q ( 2 ) );
         q ( 1 ) = ( R ( 1, 2 )+R ( 2, 1 ) ) / ( 4*q ( 2 ) );
         q ( 3 ) = ( R ( 0, 1 )-R ( 1, 0 ) ) / ( 4*q ( 2 ) );
     } else {
-        q ( 3 ) = std::sqrt ( 1+R.trace() ) / 2.0;
+        q ( 3 ) = sqrt ( 1+trace_R ) / 2.0;
         q ( 0 ) = ( R ( 1, 2 )-R ( 2, 1 ) ) / ( 4*q ( 3 ) );
         q ( 1 ) = ( R ( 2, 0 )-R ( 0, 2 ) ) / ( 4*q ( 3 ) );
         q ( 2 ) = ( R ( 0, 1 )-R ( 1, 0 ) ) / ( 4*q ( 3 ) );

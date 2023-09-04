@@ -1,5 +1,5 @@
 /*
-  ImuEKF.cpp - Library to apply an EKF to an IMU (accel. and gyro.) - implementation
+  ImuEncEKF.cpp - Library to apply an EKF to an IMU (accel. and gyro.)
   Author - Sequoyah Walters
   Note - Uses notation from "Robust Stereo Visual Inertial Odometry for Fast Autonomous Flight"
 
@@ -17,8 +17,8 @@
   bw_err: bw_err = bw - bw_estimate
 */
 
-#include "eigen.h" // Arduino Eigen math library
-#include "ImuEKF.h"
+#include <BasicLinearAlgebra.h>
+#include "ImuEncEKF.h"
 
 #include "math_utils.h"
 #include "common.h"
@@ -29,40 +29,40 @@
  * @brief Constructor for ImuEKF
  * @note Initializes state est, error state est
  */
-ImuEKF::ImuEKF()
+ImuEncEKF::ImuEncEKF()
 {
 }
 
 /*
  * @brief Set IMU measurements
  */
-void ImuEKF::setIMUmeas(double a_x, double a_y, double a_z, double w_x, double w_y, double w_z)
+void ImuEncEKF::setIMUmeas(float a_x, float a_y, float a_z, float w_x, float w_y, float w_z)
 {
-  IMU_meas_.a << a_x, a_y, a_z;
-  IMU_meas_.w << w_x, w_y, w_z;
+  IMU_meas_.a = {a_x, a_y, a_z};
+  IMU_meas_.w = {w_x, w_y, w_z};
 }
 
 /*
  * @brief Differential state dynamics
  * @note Input is state
  */
-ImuEKF::state ImuEKF::Dyn(const ImuEKF::state& X)
+ImuEncEKF::state ImuEncEKF::Dyn(const ImuEncEKF::state& X)
 {
-  Eigen::Vector3d grav = {0.0, 0.0, -9.81};
-  Eigen::Vector3d a_est = IMU_meas_.a - X.ba; // linear acceleration estimate
-  Eigen::Vector3d w_est = IMU_meas_.w - X.bw; // angular velocity estimate
+  BLA::Matrix<3> grav = {0.0, 0.0, -9.81};
+  BLA::Matrix<3> a_est = IMU_meas_.a - X.ba; // linear acceleration estimate
+  BLA::Matrix<3> w_est = IMU_meas_.w - X.bw; // angular velocity estimate
 
-  Eigen::Matrix4d Omega(4,4);
-  Omega.block(0,0,3,3) = -math_utils::skewSym(w_est);
-  Omega.block(3,0,1,3) = -w_est.transpose();
-  Omega.block(0,3,3,1) = w_est;
+  BLA::Matrix<4,4> Omega(4,4);
+  Omega.Submatrix<3,3>(0,0) = -math_utils::skewSym(w_est);
+  Omega.Submatrix<1,3>(3,0) = -(~w_est);
+  Omega.Submatrix<3,1>(0,3) = w_est;
   Omega(3,3) = 0.0;
 
   state Xdot;
-  Xdot.q = 0.5 * Omega * X.q;
-  Xdot.bw << 0.0, 0.0, 0.0;
-  Xdot.v = math_utils::quat2Rot(X.q).transpose() * a_est + grav;
-  Xdot.ba << 0.0, 0.0, 0.0;
+  Xdot.q = Omega * X.q * 0.5f;
+  Xdot.bw = {0.0, 0.0, 0.0};
+  Xdot.v = ( ~(math_utils::quat2Rot(X.q)) ) * a_est + grav;
+  Xdot.ba = {0.0, 0.0, 0.0};
   Xdot.p = X.v;
 
   return Xdot;
@@ -71,14 +71,14 @@ ImuEKF::state ImuEKF::Dyn(const ImuEKF::state& X)
 /*
  * @brief Simulation step using 4-th order Runge-Kutta
  */
-void ImuEKF::RK4(double dt)
+void ImuEncEKF::RK4(float dt)
 {
   // RK4
-  ImuEKF::state k1 = ImuEKF::Dyn(X_est_);
-  ImuEKF::state k2 = ImuEKF::Dyn(X_est_ + k1 * (dt/2.0));
-  ImuEKF::state k3 = ImuEKF::Dyn(X_est_ + k2 * (dt/2.0));
-  ImuEKF::state k4 = ImuEKF::Dyn(X_est_ + k3 * dt);
-  ImuEKF::state k = (k1 + k2 * 2.0 + k3 * 2.0 + k4) / 6.0;
+  ImuEncEKF::state k1 = ImuEncEKF::Dyn(X_est_);
+  ImuEncEKF::state k2 = ImuEncEKF::Dyn(X_est_ + k1 * (dt/2.0));
+  ImuEncEKF::state k3 = ImuEncEKF::Dyn(X_est_ + k2 * (dt/2.0));
+  ImuEncEKF::state k4 = ImuEncEKF::Dyn(X_est_ + k3 * dt);
+  ImuEncEKF::state k = (k1 + k2 * 2.0 + k3 * 2.0 + k4) / 6.0;
   X_est_ = X_est_ + k * dt;
 
   // Normalize quaternion
@@ -88,7 +88,7 @@ void ImuEKF::RK4(double dt)
 /*
  * @brief Print state estimate
  */
-void ImuEKF::printState()
+void ImuEncEKF::printState()
 {
   common::printState_(X_est_.q, X_est_.bw, X_est_.v, X_est_.ba, X_est_.p);
 }
@@ -96,7 +96,7 @@ void ImuEKF::printState()
 /*
  * @brief Print error state estimate
  */
-void ImuEKF::printErrState()
+void ImuEncEKF::printErrState()
 {
   common::printErrState_(X_err_.th_err, X_err_.bw_err, X_err_.v_err, X_err_.ba_err, X_err_.p_err);
 }

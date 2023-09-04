@@ -1,4 +1,4 @@
-#include "eigen.h"
+#include <BasicLinearAlgebra.h>
 
 #include "I2Cdev.h"
 #include "MPU6050.h"
@@ -6,7 +6,7 @@
 
 #include "common.h"
 #include "math_utils.h"
-#include "ImuEKF.h"
+#include "ImuEncEKF.h"
 
 void setup() {
   // put your setup code here, to run once:
