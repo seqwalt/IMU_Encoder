@@ -6,7 +6,6 @@
 
 #pragma once
 
-#include <string>
 #include <BasicLinearAlgebra.h>
 
 // library interface description
@@ -17,31 +16,32 @@ class ImuEncEKF
     ImuEncEKF();
 
     // Functions
-    void printState();
-    void printErrState();
     void setIMUmeas(float, float, float, float, float, float);
     void RK4(float);
+    BLA::Matrix<16,1,float> getState();
+    BLA::Matrix<15,1,float> getErrState();
+    void printState();
 
   private:
     // IMU measurement struct
     struct meas {
-      BLA::Matrix<3> a; // linear acceleration
-      BLA::Matrix<3> w; // angular velocity
+      BLA::Matrix<3,1,float> a; // linear acceleration
+      BLA::Matrix<3,1,float> w; // angular velocity
     };
 
     // State struct
     struct state {
-      BLA::Matrix<4> q;  // rotation from world frame to IMU body frame
-      BLA::Matrix<3> bw; // bias of angular velocity measurements
-      BLA::Matrix<3> v;  // velocity of IMU body frame in world frame
-      BLA::Matrix<3> ba; // bias of linear acceleration measurements
-      BLA::Matrix<3> p;  // position of IMU body frame in world frame
+      BLA::Matrix<4,1,float> q;  // rotation from world frame to IMU body frame
+      BLA::Matrix<3,1,float> bw; // bias of angular velocity measurements
+      BLA::Matrix<3,1,float> v;  // velocity of IMU body frame in world frame
+      BLA::Matrix<3,1,float> ba; // bias of linear acceleration measurements
+      BLA::Matrix<3,1,float> p;  // position of IMU body frame in world frame
       // Constructor
-      state(BLA::Matrix<4> q={0.0, 0.0, 0.0, 1.0},
-            BLA::Matrix<3> bw={0.0, 0.0, 0.0},
-            BLA::Matrix<3> v={0.0, 0.0, 0.0},
-            BLA::Matrix<3> ba={0.0, 0.0, 0.0},
-            BLA::Matrix<3> p={0.0, 0.0, 0.0})
+      state(BLA::Matrix<4,1,float> q={0.0f, 0.0f, 0.0f, 1.0f},
+            BLA::Matrix<3,1,float> bw={0.0f, 0.0f, 0.0f},
+            BLA::Matrix<3,1,float> v={0.0f, 0.0f, 0.0f},
+            BLA::Matrix<3,1,float> ba={0.0f, 0.0f, 0.0f},
+            BLA::Matrix<3,1,float> p={0.0f, 0.0f, 0.0f})
         : q(q), bw(bw), v(v), ba(ba), p(p)
       {
       }
@@ -64,17 +64,17 @@ class ImuEncEKF
 
     // Error state struct
     struct err_state {
-      BLA::Matrix<3> th_err; // small angle rotation error q_err ~= (0.5*th_err, 1)^T
-      BLA::Matrix<3> bw_err; // bw_err = bw_true - bw_estimate
-      BLA::Matrix<3> v_err;
-      BLA::Matrix<3> ba_err;
-      BLA::Matrix<3> p_err;
+      BLA::Matrix<3,1,float> th_err; // small angle rotation error q_err ~= (0.5*th_err, 1)^T
+      BLA::Matrix<3,1,float> bw_err; // bw_err = bw_true - bw_estimate
+      BLA::Matrix<3,1,float> v_err;
+      BLA::Matrix<3,1,float> ba_err;
+      BLA::Matrix<3,1,float> p_err;
       // Constructor
-      err_state(BLA::Matrix<3> th_err={0.0, 0.0, 0.0},
-                BLA::Matrix<3> bw_err={0.0, 0.0, 0.0},
-                BLA::Matrix<3> v_err={0.0, 0.0, 0.0},
-                BLA::Matrix<3> ba_err={0.0, 0.0, 0.0},
-                BLA::Matrix<3> p_err={0.0, 0.0, 0.0})
+      err_state(BLA::Matrix<3,1,float> th_err={0.0f, 0.0f, 0.0f},
+                BLA::Matrix<3,1,float> bw_err={0.0f, 0.0f, 0.0f},
+                BLA::Matrix<3,1,float> v_err={0.0f, 0.0f, 0.0f},
+                BLA::Matrix<3,1,float> ba_err={0.0f, 0.0f, 0.0f},
+                BLA::Matrix<3,1,float> p_err={0.0f, 0.0f, 0.0f})
         : th_err(th_err), bw_err(bw_err), v_err(v_err), ba_err(ba_err), p_err(p_err)
       {
       }
@@ -99,7 +99,7 @@ class ImuEncEKF
     meas IMU_meas_;   // IMU measurement
     state X_est_;     // state estimate
     err_state X_err_; // error state estimate
-    BLA::Matrix<15, 15> P_k; // error state covariance
+    BLA::Matrix<15,15,float> P_k; // error state covariance
 
     // Functions
     state Dyn(const ImuEncEKF::state&); // state dynamics
