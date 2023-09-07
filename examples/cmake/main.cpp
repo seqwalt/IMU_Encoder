@@ -6,9 +6,9 @@
 
 int main(){
     ImuEncEKF filter;
-    filter.setIMUmeas(1.0, -3.0, 9.81, 0.0, 0.0, 0.0);
+    filter.setIMUmeas(100, -300, 981, 0.0, 0.0, 0.0, 0.001, 0.001);
     print::printState(filter.getState());
-    filter.RK4(0.05); // run RK4 with 0.05 second time step
+    filter.propagateImuState(0.05); // run RK4 with 0.05 second time step
     print::printState(filter.getState());
 
     // Test math_utils.h

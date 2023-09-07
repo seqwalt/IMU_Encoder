@@ -1,6 +1,6 @@
 // For reading IMU data
 #include "I2Cdev.h"   // must be installed as lib
-#include "MPU6050.h"  // must be installed as lib
+#include "MPU6050.h"  // use IMU_Zero example from MPU6050 to set offset values onto device
 #include "math.h"
 
 // For EKF
@@ -20,8 +20,6 @@
 // Initialize class objects
 ImuEncEKF filter;
 MPU6050 accelgyro;
-int16_t ax, ay, az;
-int16_t gx, gy, gz;
 unsigned long time_f;
 
 void setup() {
@@ -52,6 +50,8 @@ void setup() {
 
 void loop() {
   // read raw accel/gyro measurements from device
+  int16_t ax, ay, az;
+  int16_t gx, gy, gz;
   accelgyro.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
 
   // Calculate dt
@@ -62,27 +62,25 @@ void loop() {
 
   float a_scale = GRAV / 8192.0f;                              // scale factor to convert accel into units of m/s^2
   float g_scale = M_PI / (180.0f * 65.5f);                     // scale factor to convert gyro into units of rad/s
-  gx = gx + 0.13f/g_scale; // hack bias
-  //printMeasurements(ax,ay,az,gx,gy,gz,a_scale,g_scale);
 
-  filter.setIMUmeas((float)(ax * a_scale), (float)(ay * a_scale), (float)(az * a_scale), (float)(gx * g_scale), (float)(gy * g_scale), (float)(gy * g_scale));
-  filter.RK4(dt);
-  //BLA::Matrix<16,1,float> X_est = filter.getState();
-  filter.printState();
+  filter.setIMUmeas(ax, ay, az, gx, gy, gz, a_scale, g_scale);
+  filter.propagateImuState(dt);
+  BLA::Matrix<16,1,float> X_est = filter.getState();
+  printQuaternion(X_est);
 }
 
-inline void printMeasurements(int16_t ax, int16_t ay, int16_t az, int16_t gx, int16_t gy, int16_t gz, float a_scale, float g_scale) {
-  Serial.print("ax ");
-  Serial.print(ax * a_scale);
-  Serial.print(" ay ");
-  Serial.print(ay * a_scale);
-  Serial.print(" az ");
-  Serial.print(az * a_scale);
-  Serial.print(" gx ");
-  Serial.print(gx * g_scale);
-  Serial.print(" gy ");
-  Serial.print(gy * g_scale);
-  Serial.print(" gz ");
-  Serial.print(gz * g_scale);
-  Serial.println();
+void printQuaternion(BLA::Matrix<16,1,float> X_est) {
+  float qx, qy, qz, qw;
+  qx = X_est(0);
+  qy = X_est(1);
+  qz = X_est(2);
+  qw = X_est(3);
+  Serial.print(qx, 4);
+  Serial.print(",");
+  Serial.print(qy, 4);
+  Serial.print(",");
+  Serial.print(qz, 4);
+  Serial.print(",");
+  Serial.print(qw, 4);
+  Serial.println(",");
 }

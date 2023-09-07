@@ -14,8 +14,10 @@
  *     Use BasicLinearAlgebra instead of Eigen
  *
  * Function list (all input/output float types):
- *   skewSym, quatNorm, quatMult,
- *   smallAngleQuat, quat2Rot, rot2Quat
+ *   skewSym, vectNorm, quatNorm, quatMult,
+ *   smallAngleQuat, quat2Rot, rot2Quat, slerp
+ *
+ * NOTE: JPL quaternion convention used
  */
 
 #pragma once
@@ -49,6 +51,29 @@ inline BLA::Matrix<3,3,float> skewSym ( const BLA::Matrix<3,1,float>& w )
 }
 
 /*
+ * @brief Normalize a 3 vector.
+ */
+inline BLA::Matrix<3,1,float> vectNorm (
+    const BLA::Matrix<3,1,float>& v )
+{
+    BLA::Matrix<3,1,float> v_norm;
+    v_norm = v / (float)sqrt( v(0)*v(0) + v(1)*v(1) + v(2)*v(2) );
+    return v_norm;
+}
+
+/*
+ * @brief Normalize a 3 vector.
+ */
+inline BLA::Matrix<3,1,float> vectNorm (
+    float v0, float v1, float v2 )
+{
+    BLA::Matrix<3,1,float> v_norm;
+    BLA::Matrix<3,1,float> v = {v0, v1, v2};
+    v_norm = v / (float)sqrt( v(0)*v(0) + v(1)*v(1) + v(2)*v(2) );
+    return v_norm;
+}
+
+/*
  * @brief Normalize the given quaternion to unit quaternion.
  */
 inline void quatNorm ( BLA::Matrix<4,1,float>& q )
@@ -63,6 +88,12 @@ inline BLA::Matrix<4,1,float> quatMult (
     const BLA::Matrix<4,1,float>& q1,
     const BLA::Matrix<4,1,float>& q2 )
 {
+    /*
+     * L =  qw,  qz, -qy,  qx
+     *     -qz,  qw,  qx,  qy
+     *      qy, -qx,  qw,  qz
+     *     -qx, -qy, -qz,  qw
+     */
     BLA::Matrix<4,4,float> L;
     L ( 0, 0 ) =  q1 ( 3 );
     L ( 0, 1 ) =  q1 ( 2 );
@@ -183,5 +214,46 @@ inline BLA::Matrix<4,1,float> rot2Quat (
     quatNorm ( q );
     return q;
 }
+
+/*
+ * @brief Spherical linear interpolation for quaternions
+ * @note Input: intial and final quaternions,
+ *       and interp parameter t in range [0,1].
+ */
+inline BLA::Matrix<4,1,float> slerp(
+    const BLA::Matrix<4,1,float>& qa,
+    const BLA::Matrix<4,1,float>& qb,
+    float t )
+ {
+    BLA::Matrix<4,1,float> qA = qa;
+    BLA::Matrix<4,1,float> qB = qb;
+    quatNorm(qA);
+    quatNorm(qB);
+
+    if (t < 0.000001) return qA;
+    else if (t > 0.999999) return qB;
+    else
+    {
+      // (qB*inv(qA))^t * qA
+      float dot = qA(0)*qB(0) + qA(1)*qB(1) + qA(2)*qB(2) + qA(3)*qB(3);
+      if (dot < 0)
+      {
+        qA *= -1.0f;
+        dot *= -1.0f;
+      }
+      BLA::Matrix<4,1,float> qA_inv = {-qA(0), -qA(1), -qA(2), qA(3)};
+      BLA::Matrix<4,1,float> q_temp1 = quatMult(qB, qA_inv);
+      float fCos = q_temp1(3);
+      float half_ang = acos(fCos); // half angle of rotation
+      BLA::Matrix<3,1,float> v_axis = vectNorm(q_temp1(0), q_temp1(1), q_temp1(2));
+      BLA::Matrix<4,1,float> q_temp2;
+      q_temp2(0) = v_axis(0)*sin(t*half_ang);
+      q_temp2(1) = v_axis(1)*sin(t*half_ang);
+      q_temp2(2) = v_axis(2)*sin(t*half_ang);
+      q_temp2(3) = cos(t*half_ang);
+
+      return quatMult(q_temp2, qA);
+    }
+ }
 
 } // end namespace math_utils

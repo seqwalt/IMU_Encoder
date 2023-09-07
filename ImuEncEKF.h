@@ -16,11 +16,10 @@ class ImuEncEKF
     ImuEncEKF();
 
     // Functions
-    void setIMUmeas(float, float, float, float, float, float);
-    void RK4(float);
+    void setIMUmeas(int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, float, float);
+    void propagateImuState(float);
     BLA::Matrix<16,1,float> getState();
     BLA::Matrix<15,1,float> getErrState();
-    void printState();
 
   private:
     // IMU measurement struct
@@ -31,7 +30,7 @@ class ImuEncEKF
 
     // State struct
     struct state {
-      BLA::Matrix<4,1,float> q;  // rotation from world frame to IMU body frame
+      BLA::Matrix<4,1,float> q;  // rotation from world frame to IMU body frame, q = [qx, qy, qz, qw]
       BLA::Matrix<3,1,float> bw; // bias of angular velocity measurements
       BLA::Matrix<3,1,float> v;  // velocity of IMU body frame in world frame
       BLA::Matrix<3,1,float> ba; // bias of linear acceleration measurements
@@ -99,8 +98,10 @@ class ImuEncEKF
     meas IMU_meas_;   // IMU measurement
     state X_est_;     // state estimate
     err_state X_err_; // error state estimate
-    BLA::Matrix<15,15,float> P_k; // error state covariance
+    //BLA::Matrix<15,15,float> P_k; // error state covariance
 
     // Functions
-    state Dyn(const ImuEncEKF::state&); // state dynamics
+    state imuDyn(const ImuEncEKF::state&); // imu state dynamics
+    ImuEncEKF::state rk4(float, const ImuEncEKF::state&); // 4-th order Runge-Kutta
+    BLA::Matrix<4,1,float> gravQuatEst(const BLA::Matrix<3,1,float>&, const BLA::Matrix<4,1,float>&); // estimate rotation to gravity from accel measurement
 };
