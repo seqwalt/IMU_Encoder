@@ -1,4 +1,6 @@
 // For reading IMU data
+// Note: only use ElectronicCats version of MPU6050, 
+//       to avoid conflict with the i2cdevlib version.
 #include "I2Cdev.h"   // must be installed as lib
 #include "MPU6050.h"  // use IMU_Zero example from MPU6050 to set offset values onto device
 #include "math.h"
@@ -36,10 +38,24 @@ void setup() {
   // initialize device
   Serial.println("Initializing I2C devices...");
   accelgyro.initialize();
-  accelgyro.setFullScaleAccelRange(MPU6050_ACCEL_FS_4);  // Options for accel are +/- 2,4,8,16
-                                                         // Accel has sensitivity scale factors of 16384,8192,4096,2048 respectively
-  accelgyro.setFullScaleGyroRange(MPU6050_GYRO_FS_500);  // Options fo gyro are +/- 250,500,1000,2000
-                                                         // Gyro has sensitivity scale factors of 131,65.5,32.8,16.4, respectively
+
+  /* AFS_SEL | Full Scale Range | LSB Sensitivity
+   * --------+------------------+----------------
+   * 0       | +/- 2g           | 16384 LSB/g
+   * 1       | +/- 4g           |  8192 LSB/g
+   * 2       | +/- 8g           |  4096 LSB/g
+   * 3       | +/- 16g          |  2048 LSB/g
+   */
+  accelgyro.setFullScaleAccelRange(MPU6050_IMU::MPU6050_ACCEL_FS_4);
+  
+  /* FS_SEL | Full Scale Range   | LSB Sensitivity
+   * -------+--------------------+----------------
+   * 0      | +/- 250 degrees/s  | 131.0 LSB/deg/s
+   * 1      | +/- 500 degrees/s  |  65.5 LSB/deg/s
+   * 2      | +/- 1000 degrees/s |  32.8 LSB/deg/s
+   * 3      | +/- 2000 degrees/s |  16.4 LSB/deg/s
+   */
+  accelgyro.setFullScaleGyroRange(MPU6050_IMU::MPU6050_GYRO_FS_500);
 
   // verify connection
   Serial.println("Testing device connections...");
