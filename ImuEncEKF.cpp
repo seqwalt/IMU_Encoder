@@ -33,12 +33,11 @@ ImuEncEKF::ImuEncEKF()
 /*
  * @brief Set IMU measurements
  */
-void ImuEncEKF::setIMUmeas(int16_t a_x, int16_t a_y, int16_t a_z,
-                           int16_t w_x, int16_t w_y, int16_t w_z,
-                           float a_scale, float w_scale)
+void ImuEncEKF::setIMUmeas(float a_x, float a_y, float a_z,
+                           float w_x, float w_y, float w_z)
 {
-  IMU_meas_.a(0) = a_x * a_scale; IMU_meas_.a(1) = a_y * a_scale; IMU_meas_.a(2) = a_z * a_scale;
-  IMU_meas_.w(0) = w_x * w_scale; IMU_meas_.w(1) = w_y * w_scale; IMU_meas_.w(2) = w_z * w_scale;
+  IMU_meas_.a(0) = a_x; IMU_meas_.a(1) = a_y; IMU_meas_.a(2) = a_z;
+  IMU_meas_.w(0) = w_x; IMU_meas_.w(1) = w_y; IMU_meas_.w(2) = w_z;
 }
 
 /*
@@ -95,35 +94,38 @@ ImuEncEKF::state ImuEncEKF::rk4(float dt, const ImuEncEKF::state& X_in)
 BLA::Matrix<4,1,float> ImuEncEKF::gravQuatEst(const BLA::Matrix<3,1,float>& a_meas,
                                               const BLA::Matrix<4,1,float>& q_est)
 {
+  // TODO fix this so it looks right in processing. processings fault?
+
   // Get shortest arc from IMU_meas_.a to -gravity (or z) vector
   // q_shortest = { cross(am_norm, [0,0,1]^T) , 1 + dot(am_norm, [0,0,1]^T) }
   // https://stackoverflow.com/questions/1171849/finding-quaternion-representing-the-rotation-from-one-vector-to-another
   BLA::Matrix<3,1,float> am_norm = math_utils::vectNorm(a_meas);
-  float dot = am_norm(3); // dot(am_norm, [0,0,1]^T)
+  float dot = am_norm(2); // dot(am_norm, [0,0,1]^T)
   BLA::Matrix<4,1,float> q_shortest;
-  if (dot > 0.999999)
-  {
+  if (dot > 0.999999f) {
     // a_meas points in same direction as -grav
-    q_shortest = {0.0f, 0.0f, 0.0f, 1.0f};
-  }
-  if (dot < -0.999999)
-  {
+    // q_shortest = 0 0 0 1
+    q_shortest.Fill(0.0f);
+    q_shortest(3) = 1.0f;
+  } else if (dot < -0.999999f) {
     // a_meas points in opposite direction as -grav
-    q_shortest = {0.0f, 1.0f, 0.0f, 0.0f};
-  }
-  else
-  {
-    q_shortest = {am_norm(1), -am_norm(0), 0.0f, 1.0f + dot};
+    // q_shortest = 0 1 0 0 (or any other 180 degree rotation)
+    q_shortest.Fill(0.0f);
+    q_shortest(1) = 1.0f;
+  } else {
+    q_shortest(0) = am_norm(1);
+    q_shortest(1) = -am_norm(0);
+    q_shortest(2) = 0.0f;
+    q_shortest(3) = 1.0f + dot;
     math_utils::quatNorm(q_shortest);
   }
 
   // Orient q_shortest to have same yaw a X_est_.q
   float yaw = atan2(2.0f * (q_est(0)*q_est(1) - q_est(2)*q_est(3)), 1.0f - 2.0f * (q_est(1)*q_est(1) + q_est(2)*q_est(2)));
   BLA::Matrix<4,1,float> q_yaw = {0.0f, 0.0f, sin(yaw/2), cos(yaw/2)}; // q_yaw = {sin(yaw/2)[0,0,1]^T , cos(yaw/2)}
-  q_shortest = math_utils::quatMult(q_shortest, q_yaw);
-  math_utils::quatNorm(q_shortest);
+  BLA::Matrix<4,1,float> q_ret = math_utils::quatMult(q_shortest, q_yaw);
 
-  return q_shortest;
+  return q_ret;
 }
 
 void ImuEncEKF::propagateImuState(float dt)
@@ -134,7 +136,7 @@ void ImuEncEKF::propagateImuState(float dt)
   //X_est_ = ImuEncEKF::rk4(dt, X_est_);
 
   // Estimate gravity direction
-  BLA::Matrix<4,1,float> q_grav = ImuEncEKF::gravQuatEst(IMU_meas_.a, X_pred.q);
+  //BLA::Matrix<4,1,float> q_grav = ImuEncEKF::gravQuatEst(IMU_meas_.a, X_pred.q);
 
   // Align X_est_.q towards q_grav
   //float t =
@@ -157,6 +159,18 @@ BLA::Matrix<16,1,float> ImuEncEKF::getState()
 }
 
 /*
+ * @brief Get estimated quaternion
+ */
+BLA::Matrix<4,1,float> ImuEncEKF::getQuat()
+{
+  // return X_est_.q;
+
+  // TODO change this back
+  BLA::Matrix<4,1,float> q_grav = ImuEncEKF::gravQuatEst(IMU_meas_.a, X_est_.q);
+  return q_grav;
+}
+
+/*
  * @brief Get estimated error state as a single BLA vector
  */
 BLA::Matrix<15,1,float> ImuEncEKF::getErrState()
@@ -167,4 +181,17 @@ BLA::Matrix<15,1,float> ImuEncEKF::getErrState()
                                    X_err_.ba_err(0), X_err_.ba_err(1), X_err_.ba_err(2),
                                    X_err_.p_err(0),  X_err_.p_err(1),  X_err_.p_err(2)};
   return X_err;
+}
+
+/*
+ * @brief Print the state
+ */
+void ImuEncEKF::printState()
+{
+  Serial.println("X_est:");
+  Serial.print("  q: "); Serial.print(X_est_.q(0));  Serial.print(" "); Serial.print(X_est_.q(1));  Serial.print(" "); Serial.print(X_est_.q(2)); Serial.print(" "); Serial.println(X_est_.q(3));
+  Serial.print(" bw: "); Serial.print(X_est_.bw(0)); Serial.print(" "); Serial.print(X_est_.bw(1)); Serial.print(" "); Serial.println(X_est_.bw(2));
+  Serial.print("  v: "); Serial.print(X_est_.v(0));  Serial.print(" "); Serial.print(X_est_.v(1));  Serial.print(" "); Serial.println(X_est_.v(2));
+  Serial.print(" ba: "); Serial.print(X_est_.ba(0)); Serial.print(" "); Serial.print(X_est_.ba(1)); Serial.print(" "); Serial.println(X_est_.ba(2));
+  Serial.print("  p: "); Serial.print(X_est_.p(0));  Serial.print(" "); Serial.print(X_est_.p(1));  Serial.print(" "); Serial.println(X_est_.p(2));
 }

@@ -16,10 +16,12 @@ class ImuEncEKF
     ImuEncEKF();
 
     // Functions
-    void setIMUmeas(int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, float, float);
+    void setIMUmeas(float, float, float, float, float, float);
     void propagateImuState(float);
     BLA::Matrix<16,1,float> getState();
+    BLA::Matrix<4,1,float> getQuat();
     BLA::Matrix<15,1,float> getErrState();
+    void printState();
 
   private:
     // IMU measurement struct

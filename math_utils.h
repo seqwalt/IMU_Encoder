@@ -62,18 +62,6 @@ inline BLA::Matrix<3,1,float> vectNorm (
 }
 
 /*
- * @brief Normalize a 3 vector.
- */
-inline BLA::Matrix<3,1,float> vectNorm (
-    float v0, float v1, float v2 )
-{
-    BLA::Matrix<3,1,float> v_norm;
-    BLA::Matrix<3,1,float> v = {v0, v1, v2};
-    v_norm = v / (float)sqrt( v(0)*v(0) + v(1)*v(1) + v(2)*v(2) );
-    return v_norm;
-}
-
-/*
  * @brief Normalize the given quaternion to unit quaternion.
  */
 inline void quatNorm ( BLA::Matrix<4,1,float>& q )
@@ -95,26 +83,53 @@ inline BLA::Matrix<4,1,float> quatMult (
      *     -qx, -qy, -qz,  qw
      */
     BLA::Matrix<4,4,float> L;
-    L ( 0, 0 ) =  q1 ( 3 );
-    L ( 0, 1 ) =  q1 ( 2 );
-    L ( 0, 2 ) = -q1 ( 1 );
-    L ( 0, 3 ) =  q1 ( 0 );
-    L ( 1, 0 ) = -q1 ( 2 );
-    L ( 1, 1 ) =  q1 ( 3 );
-    L ( 1, 2 ) =  q1 ( 0 );
-    L ( 1, 3 ) =  q1 ( 1 );
-    L ( 2, 0 ) =  q1 ( 1 );
-    L ( 2, 1 ) = -q1 ( 0 );
-    L ( 2, 2 ) =  q1 ( 3 );
-    L ( 2, 3 ) =  q1 ( 2 );
-    L ( 3, 0 ) = -q1 ( 0 );
-    L ( 3, 1 ) = -q1 ( 1 );
-    L ( 3, 2 ) = -q1 ( 2 );
-    L ( 3, 3 ) =  q1 ( 3 );
+    L(0,0) =  q1(3);
+    L(0,1) =  q1(2);
+    L(0,2) = -q1(1);
+    L(0,3) =  q1(0);
+    L(1,0) = -q1(2);
+    L(1,1) =  q1(3);
+    L(1,2) =  q1(0);
+    L(1,3) =  q1(1);
+    L(2,0) =  q1(1);
+    L(2,1) = -q1(0);
+    L(2,2) =  q1(3);
+    L(2,3) =  q1(2);
+    L(3,0) = -q1(0);
+    L(3,1) = -q1(1);
+    L(3,2) = -q1(2);
+    L(3,3) =  q1(3);
 
-    BLA::Matrix<4> q = L * q2;
-    quatNorm ( q );
-    return q;
+    // q_prod = L * q2
+    BLA::Matrix<4,1,float> q_prod;
+    q_prod(0) = L(0,0)*q2(0) + L(0,1)*q2(1) + L(0,2)*q2(2) + L(0,3)*q2(3);
+    q_prod(1) = L(1,0)*q2(0) + L(1,1)*q2(1) + L(1,2)*q2(2) + L(1,3)*q2(3);
+    q_prod(2) = L(2,0)*q2(0) + L(2,1)*q2(1) + L(2,2)*q2(2) + L(2,3)*q2(3);
+    q_prod(3) = L(3,0)*q2(0) + L(3,1)*q2(1) + L(3,2)*q2(2) + L(3,3)*q2(3);
+
+    // TODO why norm not work?
+    //quatNorm(q_prod);
+
+    //float num;
+    //num = q_prod(0)*q_prod(0) + q_prod(1)*q_prod(1) + q_prod(2)*q_prod(2) + q_prod(3)*q_prod(3);
+    //Serial.print(q_prod(3)*q_prod(3)); // qx
+    // Serial.print(",");
+    // Serial.print(q_prod(1)*q_prod(1)); // qy
+    // Serial.print(",");
+    // Serial.print(q_prod(2)*q_prod(2)); // qz
+    // Serial.print(",");
+    // Serial.print(q_prod(3)*q_prod(3)); // qw
+
+    // Serial.print(q_prod(0), 1); // qx
+    // Serial.print(",");
+    // Serial.print(q_prod(1), 1); // qy
+    // Serial.print(",");
+    // Serial.print(q_prod(2), 1); // qz
+    // Serial.print(",");
+    // Serial.print(q_prod(3), 1); // qw
+    //
+    // Serial.println(",");
+    return q_prod;
 }
 
 /*
@@ -245,7 +260,8 @@ inline BLA::Matrix<4,1,float> slerp(
       BLA::Matrix<4,1,float> q_temp1 = quatMult(qB, qA_inv);
       float fCos = q_temp1(3);
       float half_ang = acos(fCos); // half angle of rotation
-      BLA::Matrix<3,1,float> v_axis = vectNorm(q_temp1(0), q_temp1(1), q_temp1(2));
+      BLA::Matrix<3,1,float> v_temp = {q_temp1(0), q_temp1(1), q_temp1(2)};
+      BLA::Matrix<3,1,float> v_axis = vectNorm(v_temp);
       BLA::Matrix<4,1,float> q_temp2;
       q_temp2(0) = v_axis(0)*sin(t*half_ang);
       q_temp2(1) = v_axis(1)*sin(t*half_ang);
