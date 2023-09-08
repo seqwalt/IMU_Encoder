@@ -102,16 +102,16 @@ BLA::Matrix<4,1,float> ImuEncEKF::gravQuatEst(const BLA::Matrix<3,1,float>& a_me
   BLA::Matrix<3,1,float> am_norm = math_utils::vectNorm(a_meas);
   float dot = am_norm(2); // dot(am_norm, [0,0,1]^T)
   BLA::Matrix<4,1,float> q_shortest;
-  if (dot > 0.999999f) {
+  if (dot > 0.99999f) {
     // a_meas points in same direction as -grav
     // q_shortest = 0 0 0 1
     q_shortest.Fill(0.0f);
     q_shortest(3) = 1.0f;
-  } else if (dot < -0.999999f) {
+  } else if (dot < -0.99999f) {
     // a_meas points in opposite direction as -grav
     // q_shortest = 0 1 0 0 (or any other 180 degree rotation)
     q_shortest.Fill(0.0f);
-    q_shortest(1) = 1.0f;
+    q_shortest(0) = 1.0f;
   } else {
     q_shortest(0) = am_norm(1);
     q_shortest(1) = -am_norm(0);
@@ -121,11 +121,12 @@ BLA::Matrix<4,1,float> ImuEncEKF::gravQuatEst(const BLA::Matrix<3,1,float>& a_me
   }
 
   // Orient q_shortest to have same yaw a X_est_.q
-  float yaw = atan2(2.0f * (q_est(0)*q_est(1) - q_est(2)*q_est(3)), 1.0f - 2.0f * (q_est(1)*q_est(1) + q_est(2)*q_est(2)));
-  BLA::Matrix<4,1,float> q_yaw = {0.0f, 0.0f, sin(yaw/2), cos(yaw/2)}; // q_yaw = {sin(yaw/2)[0,0,1]^T , cos(yaw/2)}
-  BLA::Matrix<4,1,float> q_ret = math_utils::quatMult(q_shortest, q_yaw);
+  //float yaw = atan2(2.0f * (q_est(0)*q_est(1) - q_est(2)*q_est(3)), 1.0f - 2.0f * (q_est(1)*q_est(1) + q_est(2)*q_est(2)));
+  //BLA::Matrix<4,1,float> q_yaw = {0.0f, 0.0f, sin(yaw/2), cos(yaw/2)}; // q_yaw = {sin(yaw/2)[0,0,1]^T , cos(yaw/2)}
+  //BLA::Matrix<4,1,float> q_ret = math_utils::quatMult(q_shortest, q_yaw);
 
-  return q_ret;
+  return q_shortest;
+  //return q_ret;
 }
 
 void ImuEncEKF::propagateImuState(float dt)
