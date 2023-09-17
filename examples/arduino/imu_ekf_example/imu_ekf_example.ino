@@ -81,7 +81,7 @@ void setup() {
 void loop() {
   // Read raw accel/gyro measurements from device
   accelgyro.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
-  printMeasurements();
+  //printMeasurements();
 
   // Calculate dt
   unsigned long time_i = time_f;
@@ -92,8 +92,8 @@ void loop() {
 
   filter.processImuMeas(ax*a_scl, ay*a_scl, az*a_scl, gx*g_scl + 0.12, gy*g_scl, gz*g_scl);
   filter.propagateImuState(dt, dur);
-  //BLA::Matrix<4,1,float> q_est = filter.getQuat();
-  //printVector4(q_est);
+  BLA::Matrix<4,1,float> q_est = filter.getQuat();
+  printVector4(q_est);
   //BLA::Matrix<3,1,float> v_est = filter.getVel();
   //printVector3(v_est);
   //BLA::Matrix<3,1,float> p_est = filter.getPos();
