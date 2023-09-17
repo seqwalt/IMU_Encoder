@@ -40,7 +40,7 @@
 // Initialize class objects
 ImuEncEKF filter;
 MPU6050 accelgyro;
-unsigned long time_f;
+unsigned long time_f, time_start;
 int16_t ax, ay, az;
 int16_t gx, gy, gz;
 float a_scl;
@@ -74,36 +74,49 @@ void setup() {
   Serial.println(accelgyro.testConnection() ? "MPU6050 connection successful" : "MPU6050 connection failed");
 
   // Start timer
-  time_f = micros();
+  time_start = micros();
+  time_f = time_start;
 }
 
 void loop() {
   // Read raw accel/gyro measurements from device
   accelgyro.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
-  //printMeasurements();
+  printMeasurements();
 
   // Calculate dt
   unsigned long time_i = time_f;
   time_f = micros();
-  float dt = (float)(time_f - time_i) / 1000000.0f;  //microseconds to seconds
+  float dt = (float)(time_f - time_i) / 1000000.0f;  // loop time (sec)
+  float dur = (float)(time_i - time_start) / 1000000.0f;  // total time duration (sec)
   //Serial.println(dt,4); // check dt
 
-  filter.setIMUmeas(ax*a_scl, ay*a_scl, az*a_scl, gx*g_scl, gy*g_scl, gz*g_scl);
-  filter.propagateImuState(dt);
-  BLA::Matrix<4,1,float> q_est = filter.getQuat();
-  printQuaternion(q_est);
+  filter.processImuMeas(ax*a_scl, ay*a_scl, az*a_scl, gx*g_scl + 0.12, gy*g_scl, gz*g_scl);
+  filter.propagateImuState(dt, dur);
+  //BLA::Matrix<4,1,float> q_est = filter.getQuat();
+  //printVector4(q_est);
+  //BLA::Matrix<3,1,float> v_est = filter.getVel();
+  //printVector3(v_est);
+  //BLA::Matrix<3,1,float> p_est = filter.getPos();
+  //printVector3(p_est);
 }
 
-void printQuaternion(BLA::Matrix<4,1,float> q) {
-  // use smaller precision (e.g. 2) for
-  // better performance on Arduino nano
-  Serial.print(q(0), 2); // qx
+void printVector3(BLA::Matrix<3,1,float> v) {
+  Serial.print(v(0), 2); // x
   Serial.print(",");
-  Serial.print(q(1), 2); // qy
+  Serial.print(v(1), 2); // y
   Serial.print(",");
-  Serial.print(q(2), 2); // qz
+  Serial.print(v(2), 2); // z
+  Serial.println(",");
+}
+
+void printVector4(BLA::Matrix<4,1,float> v) {
+  Serial.print(v(0), 4); // qx
   Serial.print(",");
-  Serial.print(q(3), 2); // qw
+  Serial.print(v(1), 4); // qy
+  Serial.print(",");
+  Serial.print(v(2), 4); // qz
+  Serial.print(",");
+  Serial.print(v(3), 4); // qw
   Serial.println(",");
 }
 

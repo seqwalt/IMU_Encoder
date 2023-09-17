@@ -16,10 +16,12 @@ class ImuEncEKF
     ImuEncEKF();
 
     // Functions
-    void setIMUmeas(float, float, float, float, float, float);
-    void propagateImuState(float);
+    void processImuMeas(float, float, float, float, float, float);
+    void propagateImuState(float, float);
     BLA::Matrix<16,1,float> getState();
     BLA::Matrix<4,1,float> getQuat();
+    BLA::Matrix<3,1,float> getVel();
+    BLA::Matrix<3,1,float> getPos();
     BLA::Matrix<15,1,float> getErrState();
     void printState();
 
@@ -28,6 +30,7 @@ class ImuEncEKF
     struct meas {
       BLA::Matrix<3,1,float> a; // linear acceleration
       BLA::Matrix<3,1,float> w; // angular velocity
+      BLA::Matrix<4,4,float> Omega; // Omega matrix from "Robust Stereo Visual Inertial Odometry for Fast Autonomous Flight"
     };
 
     // State struct
@@ -97,13 +100,15 @@ class ImuEncEKF
     };
 
     // Class variables
-    meas IMU_meas_;   // IMU measurement
+    meas IMU_proc_;   // processed IMU measurement
     state X_est_;     // state estimate
     err_state X_err_; // error state estimate
+    float t_curr; // time since start of filter
+    BLA::Matrix<3,1,float> grav = {0.0f, 0.0f, -9.81f};
+
     //BLA::Matrix<15,15,float> P_k; // error state covariance
 
     // Functions
     state imuDyn(const ImuEncEKF::state&); // imu state dynamics
-    ImuEncEKF::state rk4(float, const ImuEncEKF::state&); // 4-th order Runge-Kutta
-    BLA::Matrix<4,1,float> gravQuatEst(const BLA::Matrix<3,1,float>&, const BLA::Matrix<4,1,float>&); // estimate rotation to gravity from accel measurement
+    state rk4(float, const ImuEncEKF::state&); // 4-th order Runge-Kutta
 };

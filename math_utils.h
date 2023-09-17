@@ -230,46 +230,4 @@ inline BLA::Matrix<4,1,float> rot2Quat (
     return q;
 }
 
-/*
- * @brief Spherical linear interpolation for quaternions
- * @note Input: intial and final quaternions,
- *       and interp parameter t in range [0,1].
- */
-inline BLA::Matrix<4,1,float> slerp(
-    const BLA::Matrix<4,1,float>& qa,
-    const BLA::Matrix<4,1,float>& qb,
-    float t )
- {
-    BLA::Matrix<4,1,float> qA = qa;
-    BLA::Matrix<4,1,float> qB = qb;
-    quatNorm(qA);
-    quatNorm(qB);
-
-    if (t < 0.000001) return qA;
-    else if (t > 0.999999) return qB;
-    else
-    {
-      // (qB*inv(qA))^t * qA
-      float dot = qA(0)*qB(0) + qA(1)*qB(1) + qA(2)*qB(2) + qA(3)*qB(3);
-      if (dot < 0)
-      {
-        qA *= -1.0f;
-        dot *= -1.0f;
-      }
-      BLA::Matrix<4,1,float> qA_inv = {-qA(0), -qA(1), -qA(2), qA(3)};
-      BLA::Matrix<4,1,float> q_temp1 = quatMult(qB, qA_inv);
-      float fCos = q_temp1(3);
-      float half_ang = acos(fCos); // half angle of rotation
-      BLA::Matrix<3,1,float> v_temp = {q_temp1(0), q_temp1(1), q_temp1(2)};
-      BLA::Matrix<3,1,float> v_axis = vectNorm(v_temp);
-      BLA::Matrix<4,1,float> q_temp2;
-      q_temp2(0) = v_axis(0)*sin(t*half_ang);
-      q_temp2(1) = v_axis(1)*sin(t*half_ang);
-      q_temp2(2) = v_axis(2)*sin(t*half_ang);
-      q_temp2(3) = cos(t*half_ang);
-
-      return quatMult(q_temp2, qA);
-    }
- }
-
 } // end namespace math_utils

@@ -33,11 +33,40 @@ ImuEncEKF::ImuEncEKF()
 /*
  * @brief Set IMU measurements
  */
-void ImuEncEKF::setIMUmeas(float a_x, float a_y, float a_z,
-                           float w_x, float w_y, float w_z)
+void ImuEncEKF::processImuMeas(float a_x, float a_y, float a_z,
+                               float w_x, float w_y, float w_z)
 {
-  IMU_meas_.a(0) = a_x; IMU_meas_.a(1) = a_y; IMU_meas_.a(2) = a_z;
-  IMU_meas_.w(0) = w_x; IMU_meas_.w(1) = w_y; IMU_meas_.w(2) = w_z;
+  BLA::Matrix<3,1,float> a_est = {a_x - X_est_.ba(0), a_y - X_est_.ba(1), a_z - X_est_.ba(2)}; // linear acceleration estimate
+  BLA::Matrix<3,1,float> w_est = {w_x - X_est_.bw(0), w_y - X_est_.bw(1), w_z - X_est_.bw(2)}; // angular velocity estimate
+
+  // Acceleration error compensation
+  // See ch. 7 in AHRS algorithms and calibration solutions to facilitate new applications using low-cost MEMS, by Sebastian O. H. Madgwick
+  float k_init = 10.0f;
+  float k_normal = 0.5f;
+  float t_init = 3.0f; // initialization time
+  float k = t_curr < t_init ? k_normal + (k_init - k_normal)*(t_init-t_curr)/t_init : k_normal;
+  BLA::Matrix<3,3,float> K = {k, 0.0f, 0.0f,
+                              0.0f, k, 0.0f,
+                              0.0f, 0.0f, k}; // acceleration error gain
+  BLA::Matrix<3,1,float> grav_dir; // direction of gravity assumed by X_est_.q
+  grav_dir(0) = 2.0f*X_est_.q(0)*X_est_.q(2) - 2.0f*X_est_.q(3)*X_est_.q(1);
+  grav_dir(1) = 2.0f*X_est_.q(1)*X_est_.q(2) + 2.0f*X_est_.q(3)*X_est_.q(0);
+  grav_dir(2) = 2.0f*X_est_.q(3)*X_est_.q(3) - 1.0f + 2.0f*X_est_.q(2)*X_est_.q(2);
+  BLA::Matrix<3,1,float> a_norm = math_utils::vectNorm(a_est);
+  BLA::Matrix<3,3,float> a_skew = math_utils::skewSym(a_norm);
+  BLA::Matrix<3,1,float> e_a = a_skew * grav_dir;
+  w_est = w_est + K*e_a;
+
+  // Construct Omega matrix
+  BLA::Matrix<4,4,float> Omega;
+  Omega.Submatrix<3,3>(0,0) = -math_utils::skewSym(w_est);
+  Omega.Submatrix<1,3>(3,0) = -(~w_est);
+  Omega.Submatrix<3,1>(0,3) = w_est;
+  Omega(3,3) = 0.0f;
+
+  IMU_proc_.a = a_est;
+  IMU_proc_.w = w_est;
+  IMU_proc_.Omega = Omega;
 }
 
 /*
@@ -46,20 +75,10 @@ void ImuEncEKF::setIMUmeas(float a_x, float a_y, float a_z,
  */
 ImuEncEKF::state ImuEncEKF::imuDyn(const ImuEncEKF::state& X_in)
 {
-  BLA::Matrix<3,1,float> grav = {0.0f, 0.0f, -9.81f};
-  BLA::Matrix<3,1,float> a_est = IMU_meas_.a - X_in.ba; // linear acceleration estimate
-  BLA::Matrix<3,1,float> w_est = IMU_meas_.w - X_in.bw; // angular velocity estimate
-
-  BLA::Matrix<4,4,float> Omega;
-  Omega.Submatrix<3,3>(0,0) = -math_utils::skewSym(w_est);
-  Omega.Submatrix<1,3>(3,0) = -(~w_est);
-  Omega.Submatrix<3,1>(0,3) = w_est;
-  Omega(3,3) = 0.0f;
-
   state Xdot;
-  Xdot.q = Omega * X_in.q * 0.5f;
+  Xdot.q = IMU_proc_.Omega * X_in.q * 0.5f;
   Xdot.bw = {0.0f, 0.0f, 0.0f};
-  Xdot.v = ( ~(math_utils::quat2Rot(X_in.q)) ) * a_est + grav;
+  Xdot.v = ( ~(math_utils::quat2Rot(X_in.q)) ) * IMU_proc_.a + grav;
   Xdot.ba = {0.0f, 0.0f, 0.0f};
   Xdot.p = X_in.v;
 
@@ -87,63 +106,17 @@ ImuEncEKF::state ImuEncEKF::rk4(float dt, const ImuEncEKF::state& X_in)
   return X_est;
 }
 
-/*
- * @brief estimate quaternion rotation from accel
- * measurement to gravity in world frame.
- */
-BLA::Matrix<4,1,float> ImuEncEKF::gravQuatEst(const BLA::Matrix<3,1,float>& a_meas,
-                                              const BLA::Matrix<4,1,float>& q_est)
-{
-  // TODO fix this so it looks right in processing. processings fault?
 
-  // Get shortest arc from IMU_meas_.a to -gravity (or z) vector
-  // q_shortest = { cross(am_norm, [0,0,1]^T) , 1 + dot(am_norm, [0,0,1]^T) }
-  // https://stackoverflow.com/questions/1171849/finding-quaternion-representing-the-rotation-from-one-vector-to-another
-  BLA::Matrix<3,1,float> am_norm = math_utils::vectNorm(a_meas);
-  float dot = am_norm(2); // dot(am_norm, [0,0,1]^T)
-  BLA::Matrix<4,1,float> q_shortest;
-  if (dot > 0.99999f) {
-    // a_meas points in same direction as -grav
-    // q_shortest = 0 0 0 1
-    q_shortest.Fill(0.0f);
-    q_shortest(3) = 1.0f;
-  } else if (dot < -0.99999f) {
-    // a_meas points in opposite direction as -grav
-    // q_shortest = 0 1 0 0 (or any other 180 degree rotation)
-    q_shortest.Fill(0.0f);
-    q_shortest(0) = 1.0f;
-  } else {
-    q_shortest(0) = am_norm(1);
-    q_shortest(1) = -am_norm(0);
-    q_shortest(2) = 0.0f;
-    q_shortest(3) = 1.0f + dot;
-    math_utils::quatNorm(q_shortest);
-  }
 
-  // Orient q_shortest to have same yaw a X_est_.q
-  //float yaw = atan2(2.0f * (q_est(0)*q_est(1) - q_est(2)*q_est(3)), 1.0f - 2.0f * (q_est(1)*q_est(1) + q_est(2)*q_est(2)));
-  //BLA::Matrix<4,1,float> q_yaw = {0.0f, 0.0f, sin(yaw/2), cos(yaw/2)}; // q_yaw = {sin(yaw/2)[0,0,1]^T , cos(yaw/2)}
-  //BLA::Matrix<4,1,float> q_ret = math_utils::quatMult(q_shortest, q_yaw);
-
-  return q_shortest;
-  //return q_ret;
-}
-
-void ImuEncEKF::propagateImuState(float dt)
+void ImuEncEKF::propagateImuState(float dt, float dur)
 {
   // Simulate forward the IMU state
   ImuEncEKF::state X_pred = ImuEncEKF::rk4(dt, X_est_);
   X_est_ = X_pred;
   //X_est_ = ImuEncEKF::rk4(dt, X_est_);
 
-  // Estimate gravity direction
-  //BLA::Matrix<4,1,float> q_grav = ImuEncEKF::gravQuatEst(IMU_meas_.a, X_pred.q);
-
-  // Align X_est_.q towards q_grav
-  //float t =
-  //X_pred.q = math_utils::slerp(X_pred.q, q_grav, t);
-  //X_pred.q = q_grav;
-  //X_est_ = X_pred;
+  // Set current time
+  t_curr = dur;
 }
 
 /*
@@ -164,11 +137,23 @@ BLA::Matrix<16,1,float> ImuEncEKF::getState()
  */
 BLA::Matrix<4,1,float> ImuEncEKF::getQuat()
 {
-  // return X_est_.q;
+  return X_est_.q;
+}
 
-  // TODO change this back
-  BLA::Matrix<4,1,float> q_grav = ImuEncEKF::gravQuatEst(IMU_meas_.a, X_est_.q);
-  return q_grav;
+/*
+ * @brief Get estimated velocity
+ */
+BLA::Matrix<3,1,float> ImuEncEKF::getVel()
+{
+  return X_est_.v;
+}
+
+/*
+ * @brief Get estimated position
+ */
+BLA::Matrix<3,1,float> ImuEncEKF::getPos()
+{
+  return X_est_.p;
 }
 
 /*
