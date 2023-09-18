@@ -16,11 +16,15 @@ class ImuEncEKF
     ImuEncEKF();
 
     // Functions
+    void applyImuBias(float, float, float, float, float, float);
+    void applyImuCalibrationMatrix(float, float, float, float, float, float, float, float, float);
     void processImuMeas(float, float, float, float, float, float);
     void propagateImuState(float, float);
     BLA::Matrix<16,1,float> getState();
     BLA::Matrix<4,1,float> getQuat();
+    BLA::Matrix<3,1,float> getAngVelBias();
     BLA::Matrix<3,1,float> getVel();
+    BLA::Matrix<3,1,float> getAccelBias();
     BLA::Matrix<3,1,float> getPos();
     BLA::Matrix<15,1,float> getErrState();
     void printState();
@@ -103,8 +107,8 @@ class ImuEncEKF
     meas IMU_proc_;   // processed IMU measurement
     state X_est_;     // state estimate
     err_state X_err_; // error state estimate
-    float t_curr; // time since start of filter
-    BLA::Matrix<3,1,float> grav = {0.0f, 0.0f, -9.81f};
+    float t_curr_; // time since start of filter
+    BLA::Matrix<3,3,float> SC_; // scale-factor/off-axis accel calib matrix
 
     //BLA::Matrix<15,15,float> P_k; // error state covariance
 

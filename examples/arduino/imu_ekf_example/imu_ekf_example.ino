@@ -1,5 +1,5 @@
 // For reading IMU data
-// Note: only use ElectronicCats version of MPU6050, 
+// Note: only use ElectronicCats version of MPU6050,
 //       to avoid conflict with the i2cdevlib version.
 #include "I2Cdev.h"
 #include "MPU6050.h" // use IMU_Zero example from MPU6050 to set offset values onto device
@@ -69,6 +69,13 @@ void setup() {
   a_scl = GRAV / a_sens[AFS_SEL];           // scale factor to convert accel into units of m/s^2
   g_scl = M_PI / (180.0f * g_sens[FS_SEL]); // scale factor to convert gyro into units of rad/s
 
+  // Set calibration values
+  //BLA::Matrix<3,3,float> SC = {1.00449253, 0.00149835, -0.01170703,
+  //                             0.00109387, 0.99652804, -0.01133514,
+  //                             0.00990466, -0.00243932, 0.98225748}; // scale-factor/off-axis accel calib matrix
+  filter.applyImuBias(0.75521805f, -0.10939551f, -0.01252244f, -0.11929224f, -0.00119457f, -0.00097603f);
+  //filter.applyImuCalibrationMatrix(1.00449253f, 0.00149835f, -0.01170703f, 0.00109387f, 0.99652804f, -0.01133514f, 0.00990466f, -0.00243932f, 0.98225748f);
+
   // Verify connection
   Serial.println("Testing device connections...");
   Serial.println(accelgyro.testConnection() ? "MPU6050 connection successful" : "MPU6050 connection failed");
@@ -90,12 +97,16 @@ void loop() {
   float dur = (float)(time_i - time_start) / 1000000.0f;  // total time duration (sec)
   //Serial.println(dt,4); // check dt
 
-  filter.processImuMeas(ax*a_scl, ay*a_scl, az*a_scl, gx*g_scl + 0.12, gy*g_scl, gz*g_scl);
+  filter.processImuMeas(ax*a_scl, ay*a_scl, az*a_scl, gx*g_scl, gy*g_scl, gz*g_scl);
   filter.propagateImuState(dt, dur);
   BLA::Matrix<4,1,float> q_est = filter.getQuat();
   printVector4(q_est);
+  //BLA::Matrix<3,1,float> bw_est = filter.getAngVelBias();
+  //printVector3(bw_est);
   //BLA::Matrix<3,1,float> v_est = filter.getVel();
   //printVector3(v_est);
+  //BLA::Matrix<3,1,float> ba_est = filter.getAccelBias();
+  //printVector3(ba_est);
   //BLA::Matrix<3,1,float> p_est = filter.getPos();
   //printVector3(p_est);
 }

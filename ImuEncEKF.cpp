@@ -22,6 +22,8 @@
 
 #include "math_utils.h"
 
+// ----- Public Functions ----- //
+
 /*
  * @brief Constructor for ImuEKF
  * @note Initializes state est, error state est
@@ -31,20 +33,44 @@ ImuEncEKF::ImuEncEKF()
 }
 
 /*
+ * @brief Apply IMU calibration bias values
+ */
+void ImuEncEKF::applyImuBias(float ba_x, float ba_y, float ba_z,
+                             float bw_x, float bw_y, float bw_z)
+{
+  X_est_.ba = {ba_x, ba_y, ba_z};
+  X_est_.bw = {bw_x, bw_y, bw_z};
+}
+
+/*
+ * @brief Apply IMU calibration matrix
+ */
+void ImuEncEKF::applyImuCalibrationMatrix(float s_x, float c_xy, float c_xz,
+                                          float c_yx, float s_y, float c_yz,
+                                          float c_zx, float c_zy, float s_z)
+{
+  SC_ = {s_x, c_xy, c_xz, c_yx, s_y, c_yz, c_zx, c_zy, s_z};
+}
+
+/*
  * @brief Set IMU measurements
  */
-void ImuEncEKF::processImuMeas(float a_x, float a_y, float a_z,
-                               float w_x, float w_y, float w_z)
+void ImuEncEKF::processImuMeas(float a_x_raw, float a_y_raw, float a_z_raw,
+                               float w_x_raw, float w_y_raw, float w_z_raw)
 {
-  BLA::Matrix<3,1,float> a_est = {a_x - X_est_.ba(0), a_y - X_est_.ba(1), a_z - X_est_.ba(2)}; // linear acceleration estimate
-  BLA::Matrix<3,1,float> w_est = {w_x - X_est_.bw(0), w_y - X_est_.bw(1), w_z - X_est_.bw(2)}; // angular velocity estimate
+  BLA::Matrix<3,1,float> a_raw = {a_x_raw, a_y_raw, a_z_raw};
+  //BLA::Matrix<3,1,float> a_est = SC_ * a_raw - X_est_.ba; // linear acceleration estimate
+  BLA::Matrix<3,1,float> a_est = {1.00449253f*a_x_raw + 0.00149835f*a_y_raw - 0.01170703f*a_z_raw - X_est_.ba(0), 0.00109387f*a_x_raw + 0.99652804f*a_y_raw - 0.01133514f*a_z_raw - X_est_.ba(1), 0.00990466f*a_x_raw - 0.00243932f*a_y_raw + 0.98225748f*a_z_raw - X_est_.ba(2)}; // linear acceleration estimate
+
+  BLA::Matrix<3,1,float> w_raw = {w_x_raw, w_y_raw, w_z_raw};
+  BLA::Matrix<3,1,float> w_est = w_raw - X_est_.bw; // angular velocity estimate
 
   // Acceleration error compensation
   // See ch. 7 in AHRS algorithms and calibration solutions to facilitate new applications using low-cost MEMS, by Sebastian O. H. Madgwick
   float k_init = 10.0f;
   float k_normal = 0.5f;
   float t_init = 3.0f; // initialization time
-  float k = t_curr < t_init ? k_normal + (k_init - k_normal)*(t_init-t_curr)/t_init : k_normal;
+  float k = t_curr_ < t_init ? k_normal + (k_init - k_normal)*(t_init-t_curr_)/t_init : k_normal;
   BLA::Matrix<3,3,float> K = {k, 0.0f, 0.0f,
                               0.0f, k, 0.0f,
                               0.0f, 0.0f, k}; // acceleration error gain
@@ -69,45 +95,6 @@ void ImuEncEKF::processImuMeas(float a_x, float a_y, float a_z,
   IMU_proc_.Omega = Omega;
 }
 
-/*
- * @brief Differential imu state dynamics
- * @note Input is state
- */
-ImuEncEKF::state ImuEncEKF::imuDyn(const ImuEncEKF::state& X_in)
-{
-  state Xdot;
-  Xdot.q = IMU_proc_.Omega * X_in.q * 0.5f;
-  Xdot.bw = {0.0f, 0.0f, 0.0f};
-  Xdot.v = ( ~(math_utils::quat2Rot(X_in.q)) ) * IMU_proc_.a + grav;
-  Xdot.ba = {0.0f, 0.0f, 0.0f};
-  Xdot.p = X_in.v;
-
-  return Xdot;
-}
-
-/*
- * @brief Simulation step using 4-th order Runge-Kutta
- */
-ImuEncEKF::state ImuEncEKF::rk4(float dt, const ImuEncEKF::state& X_in)
-{
-  // RK4
-  ImuEncEKF::state k1 = ImuEncEKF::imuDyn(X_in);
-  ImuEncEKF::state k2 = ImuEncEKF::imuDyn(X_in + k1 * (dt/2.0f));
-  ImuEncEKF::state k3 = ImuEncEKF::imuDyn(X_in + k2 * (dt/2.0f));
-  ImuEncEKF::state k4 = ImuEncEKF::imuDyn(X_in + k3 * dt);
-  ImuEncEKF::state k = (k1 + k2 * 2.0f + k3 * 2.0f + k4) / 6.0f;
-
-  ImuEncEKF::state X_est;
-  X_est = X_in + k * dt;
-
-  // Normalize quaternion
-  math_utils::quatNorm(X_est.q);
-
-  return X_est;
-}
-
-
-
 void ImuEncEKF::propagateImuState(float dt, float dur)
 {
   // Simulate forward the IMU state
@@ -116,7 +103,7 @@ void ImuEncEKF::propagateImuState(float dt, float dur)
   //X_est_ = ImuEncEKF::rk4(dt, X_est_);
 
   // Set current time
-  t_curr = dur;
+  t_curr_ = dur;
 }
 
 /*
@@ -141,11 +128,27 @@ BLA::Matrix<4,1,float> ImuEncEKF::getQuat()
 }
 
 /*
+ * @brief Get angular velocity bias
+ */
+BLA::Matrix<3,1,float> ImuEncEKF::getAngVelBias()
+{
+  return X_est_.bw;
+}
+
+/*
  * @brief Get estimated velocity
  */
 BLA::Matrix<3,1,float> ImuEncEKF::getVel()
 {
   return X_est_.v;
+}
+
+/*
+ * @brief Get acceleration bias
+ */
+BLA::Matrix<3,1,float> ImuEncEKF::getAccelBias()
+{
+  return X_est_.ba;
 }
 
 /*
@@ -180,4 +183,47 @@ void ImuEncEKF::printState()
   Serial.print("  v: "); Serial.print(X_est_.v(0));  Serial.print(" "); Serial.print(X_est_.v(1));  Serial.print(" "); Serial.println(X_est_.v(2));
   Serial.print(" ba: "); Serial.print(X_est_.ba(0)); Serial.print(" "); Serial.print(X_est_.ba(1)); Serial.print(" "); Serial.println(X_est_.ba(2));
   Serial.print("  p: "); Serial.print(X_est_.p(0));  Serial.print(" "); Serial.print(X_est_.p(1));  Serial.print(" "); Serial.println(X_est_.p(2));
+}
+
+// ----- Private Functions ----- //
+
+/*
+ * @brief Differential imu state dynamics
+ * @note Input is state
+ */
+ImuEncEKF::state ImuEncEKF::imuDyn(const ImuEncEKF::state& X_in)
+{
+  state Xdot;
+  Xdot.q = IMU_proc_.Omega * X_in.q * 0.5f;
+  Xdot.bw = {0.0f, 0.0f, 0.0f};
+  BLA::Matrix<3,1,float> grav = {0.0f, 0.0f, -9.81f};
+  Xdot.v = ( ~(math_utils::quat2Rot(X_in.q)) ) * IMU_proc_.a + grav;
+  Xdot.v(0) = abs(Xdot.v(0)) > 0.2f ? Xdot.v(0) : 0.0f;
+  Xdot.v(1) = abs(Xdot.v(1)) > 0.2f ? Xdot.v(1) : 0.0f;
+  Xdot.v(2) = abs(Xdot.v(2)) > 0.2f ? Xdot.v(2) : 0.0f;
+  Xdot.ba = {0.0f, 0.0f, 0.0f};
+  Xdot.p = X_in.v;
+
+  return Xdot;
+}
+
+/*
+ * @brief Simulation step using 4-th order Runge-Kutta
+ */
+ImuEncEKF::state ImuEncEKF::rk4(float dt, const ImuEncEKF::state& X_in)
+{
+  // RK4
+  ImuEncEKF::state k1 = ImuEncEKF::imuDyn(X_in);
+  ImuEncEKF::state k2 = ImuEncEKF::imuDyn(X_in + k1 * (dt/2.0f));
+  ImuEncEKF::state k3 = ImuEncEKF::imuDyn(X_in + k2 * (dt/2.0f));
+  ImuEncEKF::state k4 = ImuEncEKF::imuDyn(X_in + k3 * dt);
+  ImuEncEKF::state k = (k1 + k2 * 2.0f + k3 * 2.0f + k4) / 6.0f;
+
+  ImuEncEKF::state X_est;
+  X_est = X_in + k * dt;
+
+  // Normalize quaternion
+  math_utils::quatNorm(X_est.q);
+
+  return X_est;
 }
