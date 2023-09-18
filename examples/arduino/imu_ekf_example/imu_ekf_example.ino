@@ -33,7 +33,7 @@
  */
 
 #define AFS_SEL 1 // 0,1,2 or 3 (see above chart)
-#define FS_SEL 1  // 0,1,2 or 3 (see above chart)
+#define FS_SEL 2  // 0,1,2 or 3 (see above chart)
 #define M_PI 3.14159265358979323846
 #define GRAV 9.81
 
