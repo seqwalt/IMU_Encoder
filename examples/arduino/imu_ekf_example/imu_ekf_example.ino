@@ -46,6 +46,9 @@ int16_t gx, gy, gz;
 float a_scl;
 float g_scl;
 
+// scale-factor/off-axis accel calib matrix
+const float SC_[9] = {1.00449253f, 0.00149835f, -0.01170703f, 0.00109387f, 0.99652804f, -0.01133514f, 0.00990466f, -0.00243932f, 0.98225748f};
+
 void setup() {
 // join I2C bus (I2Cdev library doesn't do this automatically)
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
@@ -69,12 +72,8 @@ void setup() {
   a_scl = GRAV / a_sens[AFS_SEL];           // scale factor to convert accel into units of m/s^2
   g_scl = M_PI / (180.0f * g_sens[FS_SEL]); // scale factor to convert gyro into units of rad/s
 
-  // Set calibration values
-  //BLA::Matrix<3,3,float> SC = {1.00449253, 0.00149835, -0.01170703,
-  //                             0.00109387, 0.99652804, -0.01133514,
-  //                             0.00990466, -0.00243932, 0.98225748}; // scale-factor/off-axis accel calib matrix
+  // Set calibration bias values
   filter.applyImuBias(0.75521805f, -0.10939551f, -0.01252244f, -0.11929224f, -0.00119457f, -0.00097603f);
-  //filter.applyImuCalibrationMatrix(1.00449253f, 0.00149835f, -0.01170703f, 0.00109387f, 0.99652804f, -0.01133514f, 0.00990466f, -0.00243932f, 0.98225748f);
 
   // Verify connection
   Serial.println("Testing device connections...");
@@ -97,7 +96,7 @@ void loop() {
   float dur = (float)(time_i - time_start) / 1000000.0f;  // total time duration (sec)
   //Serial.println(dt,4); // check dt
 
-  filter.processImuMeas(ax*a_scl, ay*a_scl, az*a_scl, gx*g_scl, gy*g_scl, gz*g_scl);
+  filter.processImuMeas(ax*a_scl, ay*a_scl, az*a_scl, gx*g_scl, gy*g_scl, gz*g_scl, SC_);
   filter.propagateImuState(dt, dur);
   BLA::Matrix<4,1,float> q_est = filter.getQuat();
   printVector4(q_est);
@@ -111,7 +110,7 @@ void loop() {
   //printVector3(p_est);
 }
 
-void printVector3(BLA::Matrix<3,1,float> v) {
+void printVector3(const BLA::Matrix<3,1,float>& v) {
   Serial.print(v(0), 2); // x
   Serial.print(",");
   Serial.print(v(1), 2); // y
@@ -120,7 +119,7 @@ void printVector3(BLA::Matrix<3,1,float> v) {
   Serial.println(",");
 }
 
-void printVector4(BLA::Matrix<4,1,float> v) {
+void printVector4(const BLA::Matrix<4,1,float>& v) {
   Serial.print(v(0), 4); // qx
   Serial.print(",");
   Serial.print(v(1), 4); // qy

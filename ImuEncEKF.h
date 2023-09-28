@@ -17,8 +17,7 @@ class ImuEncEKF
 
     // Functions
     void applyImuBias(float, float, float, float, float, float);
-    void applyImuCalibrationMatrix(float, float, float, float, float, float, float, float, float);
-    void processImuMeas(float, float, float, float, float, float);
+    void processImuMeas(float, float, float, float, float, float, const float*);
     void propagateImuState(float, float);
     BLA::Matrix<16,1,float> getState();
     BLA::Matrix<4,1,float> getQuat();
@@ -108,7 +107,6 @@ class ImuEncEKF
     state X_est_;     // state estimate
     err_state X_err_; // error state estimate
     float t_curr_; // time since start of filter
-    BLA::Matrix<3,3,float> SC_; // scale-factor/off-axis accel calib matrix
 
     //BLA::Matrix<15,15,float> P_k; // error state covariance
 

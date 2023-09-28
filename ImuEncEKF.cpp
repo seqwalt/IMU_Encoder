@@ -43,24 +43,13 @@ void ImuEncEKF::applyImuBias(float ba_x, float ba_y, float ba_z,
 }
 
 /*
- * @brief Apply IMU calibration matrix
- */
-void ImuEncEKF::applyImuCalibrationMatrix(float s_x, float c_xy, float c_xz,
-                                          float c_yx, float s_y, float c_yz,
-                                          float c_zx, float c_zy, float s_z)
-{
-  SC_ = {s_x, c_xy, c_xz, c_yx, s_y, c_yz, c_zx, c_zy, s_z};
-}
-
-/*
  * @brief Set IMU measurements
  */
 void ImuEncEKF::processImuMeas(float a_x_raw, float a_y_raw, float a_z_raw,
-                               float w_x_raw, float w_y_raw, float w_z_raw)
+                               float w_x_raw, float w_y_raw, float w_z_raw, const float* SC_)
 {
   BLA::Matrix<3,1,float> a_raw = {a_x_raw, a_y_raw, a_z_raw};
-  //BLA::Matrix<3,1,float> a_est = SC_ * a_raw - X_est_.ba; // linear acceleration estimate
-  BLA::Matrix<3,1,float> a_est = {1.00449253f*a_x_raw + 0.00149835f*a_y_raw - 0.01170703f*a_z_raw - X_est_.ba(0), 0.00109387f*a_x_raw + 0.99652804f*a_y_raw - 0.01133514f*a_z_raw - X_est_.ba(1), 0.00990466f*a_x_raw - 0.00243932f*a_y_raw + 0.98225748f*a_z_raw - X_est_.ba(2)}; // linear acceleration estimate
+  BLA::Matrix<3,1,float> a_est = {SC_[0]*a_x_raw + SC_[1]*a_y_raw + SC_[2]*a_z_raw - X_est_.ba(0), SC_[3]*a_x_raw + SC_[4]*a_y_raw + SC_[5]*a_z_raw - X_est_.ba(1), SC_[6]*a_x_raw + SC_[7]*a_y_raw + SC_[8]*a_z_raw - X_est_.ba(2)}; // linear acceleration estimate
 
   BLA::Matrix<3,1,float> w_raw = {w_x_raw, w_y_raw, w_z_raw};
   BLA::Matrix<3,1,float> w_est = w_raw - X_est_.bw; // angular velocity estimate
