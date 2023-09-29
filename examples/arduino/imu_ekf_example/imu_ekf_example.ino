@@ -98,8 +98,15 @@ void loop() {
 
   filter.processImuMeas(ax*a_scl, ay*a_scl, az*a_scl, gx*g_scl, gy*g_scl, gz*g_scl, SC_);
   filter.propagateImuState(dt, dur);
-  BLA::Matrix<4,1,float> q_est = filter.getQuat();
-  printVector4(q_est);
+  BLA::Matrix<4,1,float> q = filter.getQuat();
+  // Rotate quaternion about y-axis, to align with robot body
+  float sq2_2 = sqrt(2)/2;
+  BLA::Matrix<4,1,float> q_rot = {sq2_2*q(0) - sq2_2*q(2), -sq2_2*q(3) + sq2_2*q(1), sq2_2*q(0) + sq2_2*q(2), -sq2_2*q(3) - sq2_2*q(1)};
+  // Pitch
+  float pitch = -asin(2*(q_rot(3)*q_rot(1) - q_rot(0)*q_rot(2)));
+  Serial.println(pitch);
+  //printVector4(q_est);
+  //printMeasurements();
   //BLA::Matrix<3,1,float> bw_est = filter.getAngVelBias();
   //printVector3(bw_est);
   //BLA::Matrix<3,1,float> v_est = filter.getVel();
@@ -131,17 +138,14 @@ void printVector4(const BLA::Matrix<4,1,float>& v) {
 }
 
 void printMeasurements() {
-  Serial.print(F("ax "));
+  //Serial.print(F("ax "));
   Serial.print(ax * a_scl);
-  Serial.print(F(" ay "));
+  Serial.print(",");
   Serial.print(ay * a_scl);
-  Serial.print(F(" az "));
+  Serial.print(",");
   Serial.print(az * a_scl);
-  Serial.print(F(" gx "));
-  Serial.print(gx * g_scl);
-  Serial.print(F(" gy "));
-  Serial.print(gy * g_scl);
-  Serial.print(F(" gz "));
-  Serial.print(gz * g_scl);
-  Serial.println();
+  //Serial.print(gx * g_scl);
+  //Serial.print(gy * g_scl);
+  //Serial.print(gz * g_scl);
+  Serial.println(",");
 }

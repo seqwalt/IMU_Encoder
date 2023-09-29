@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import sympy as sp
+import numpy as np
 
 # Quaternion class
 class Quaternion:
@@ -138,6 +139,12 @@ class Vector3:
 qw, qx, qy, qz = sp.symbols('qw qx qy qz')
 #q = Quaternion(qw, qx, qy, qz, "Hamilton")
 q = Quaternion(qx, qy, qz, qw, "JPL")
+
+# multiplication
+ang = np.pi/2
+qb = Quaternion(0.0, np.sin(ang/2), 0.0, np.cos(ang/2), "JPL")
+qc = q.mult(qb)
+qc.print()
 
 # Gravity direction in body frame
 grav = Vector3(0, 0, 1)
