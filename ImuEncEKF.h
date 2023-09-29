@@ -17,6 +17,7 @@ class ImuEncEKF
 
     // Functions
     void applyImuBias(float, float, float, float, float, float);
+    void getCalibMeas(float*, float, float, float, float, float, float, const float*);
     void processImuMeas(float, float, float, float, float, float, const float*);
     void propagateImuState(float, float);
     BLA::Matrix<16,1,float> getState();

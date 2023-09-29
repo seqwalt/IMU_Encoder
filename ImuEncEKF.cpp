@@ -43,6 +43,22 @@ void ImuEncEKF::applyImuBias(float ba_x, float ba_y, float ba_z,
 }
 
 /*
+ * @brief Get calibrated IMU measurements
+ */
+void ImuEncEKF::getCalibMeas(float* calib_meas, float a_x_raw, float a_y_raw, float a_z_raw,
+                                float w_x_raw, float w_y_raw, float w_z_raw, const float* SC_)
+{
+  // calibrated lin accel
+  calib_meas[0] = SC_[0]*a_x_raw + SC_[1]*a_y_raw + SC_[2]*a_z_raw - X_est_.ba(0);
+  calib_meas[1] = SC_[3]*a_x_raw + SC_[4]*a_y_raw + SC_[5]*a_z_raw - X_est_.ba(1);
+  calib_meas[2] = SC_[6]*a_x_raw + SC_[7]*a_y_raw + SC_[8]*a_z_raw - X_est_.ba(2);
+  // calibrated ang rate
+  calib_meas[3] = w_x_raw - X_est_.bw(0);
+  calib_meas[4] = w_y_raw - X_est_.bw(1);
+  calib_meas[5] = w_z_raw - X_est_.bw(0);
+}
+
+/*
  * @brief Set IMU measurements
  */
 void ImuEncEKF::processImuMeas(float a_x_raw, float a_y_raw, float a_z_raw,
