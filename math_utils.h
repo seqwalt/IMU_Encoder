@@ -15,7 +15,7 @@
  *
  * Function list (all input/output float types):
  *   skewSym, vectNorm, quatNorm, quatMult,
- *   smallAngleQuat, quat2Rot, rot2Quat, slerp
+ *   smallAngleQuat, quat2Rot, rot2Quat
  *
  * NOTE: JPL quaternion convention used
  */
